@@ -1,0 +1,28 @@
+# Classified Ads Analysis Report
+
+## Overview
+Search phrase: motor bikes
+Target region: pakistan
+Total listings found: 16
+Listings in target region: 0 (0.0% of total)
+
+## Price Analysis
+Average price: 0.00 zł
+Median price: 0.00 zł
+Price range: 0.00 zł - 0.00 zł
+
+## Top 5 Locations
+- No Location: 16 listings (100.0%)
+
+## Category Distribution
+- other: 16 listings (100.0%)
+
+## Charts
+Charts have been saved in the 'charts' directory:
+- Average price by location: avg_price_by_location.png
+- Category distribution: category_distribution.png
+- Price distribution: price_distribution.png
+- Region comparison: region_price_comparison.png
+
+## Report Generated
+Date: 2025-04-24 14:46:26

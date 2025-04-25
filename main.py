@@ -16,6 +16,7 @@ import numpy as np
 from webdriver_manager.chrome import ChromeDriverManager
 from datetime import datetime
 import matplotlib
+import sqlite3
 matplotlib.use('Agg')  # Use non-interactive backend
 
 class ClassifiedScraper:
@@ -24,12 +25,13 @@ class ClassifiedScraper:
         self.site = site.lower()
         self.driver = None
         self.listings = []
+        self.db_conn = None
         
     def setup_driver(self):
         """Set up the Selenium WebDriver."""
         chrome_options = Options()
         # Run in headless mode - comment out if you want to see the browser
-        # chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--headless")
         chrome_options.add_argument("--window-size=1920,1080")
         chrome_options.add_argument("--disable-notifications")
         
@@ -38,7 +40,40 @@ class ClassifiedScraper:
         except Exception as e:
             print(f"Error setting up WebDriver: {e}")
             exit(1)
+    
+    def setup_database(self):
+        """Set up SQLite database for storing listings."""
+        try:
+            # Connect to SQLite database (will be created if it doesn't exist)
+            self.db_conn = sqlite3.connect('listings.db')
+            cursor = self.db_conn.cursor()
             
+            # Create table if it doesn't exist
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS listings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT,
+                location TEXT,
+                price TEXT,
+                price_value REAL,
+                url TEXT,
+                date_posted TEXT,
+                category TEXT,
+                square_meters REAL,
+                price_per_sqm REAL,
+                search_phrase TEXT,
+                scraped_date TEXT
+            )
+            ''')
+            
+            self.db_conn.commit()
+            print("Database setup complete")
+            
+        except Exception as e:
+            print(f"Error setting up database: {e}")
+            if self.db_conn:
+                self.db_conn.close()
+                
     def navigate_to_site(self):
         """Navigate to the classified ads website."""
         try:
@@ -119,7 +154,7 @@ class ClassifiedScraper:
         except Exception as e:
             print(f"Error searching listings: {e}")
             
-    def scrape_page(self):
+    def scrape_page(self, search_phrase):
         """Scrape listing data from the current page."""
         try:
             # Get page source for BeautifulSoup
@@ -136,11 +171,15 @@ class ClassifiedScraper:
                         title_element = item.select_one('h6')
                         title = title_element.text.strip() if title_element else "No Title"
                         
-                        # Extract location
+                        # Extract location and date
                         location_element = item.select_one('p[data-testid="location-date"]')
                         location_text = location_element.text.strip() if location_element else "No Location"
-                        # Extract just the location part (before the date)
+                        
+                        # Extract location (before the date)
                         location = location_text.split(' - ')[0] if ' - ' in location_text else location_text
+                        
+                        # Extract date posted (after the location)
+                        date_posted = location_text.split(' - ')[1] if ' - ' in location_text else "No Date"
                         
                         # Extract price
                         price_element = item.select_one('p[data-testid="ad-price"]')
@@ -155,6 +194,12 @@ class ClassifiedScraper:
                         if url.startswith('/'):
                             url = f"https://www.olx.pl{url}"
                         
+                        # Extract square meters from title
+                        square_meters = self._extract_square_meters(title)
+                        
+                        # Calculate price per square meter if both values are available
+                        price_per_sqm = price_value / square_meters if price_value > 0 and square_meters > 0 else 0
+                        
                         # Extract category if possible
                         category = self._extract_category(title)
                         
@@ -165,7 +210,12 @@ class ClassifiedScraper:
                             'price': price_text,
                             'price_value': price_value,
                             'url': url,
-                            'category': category
+                            'date_posted': date_posted,
+                            'category': category,
+                            'square_meters': square_meters,
+                            'price_per_sqm': price_per_sqm,
+                            'search_phrase': search_phrase,
+                            'scraped_date': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         })
                         
                     except Exception as e:
@@ -186,6 +236,9 @@ class ClassifiedScraper:
                         location_element = item.select_one('div[data-role="seller-info"] span')
                         location = location_element.text.strip() if location_element else "No Location"
                         
+                        # Extract date posted (not always available on Allegro search page)
+                        date_posted = "Not available"  # Default value
+                        
                         # Extract price
                         price_element = item.select_one('div[data-role="price"]')
                         price_text = price_element.text.strip() if price_element else "0 zł"
@@ -197,6 +250,12 @@ class ClassifiedScraper:
                         url_element = item.select_one('a')
                         url = url_element['href'] if url_element and 'href' in url_element.attrs else "No URL"
                         
+                        # Extract square meters from title
+                        square_meters = self._extract_square_meters(title)
+                        
+                        # Calculate price per square meter if both values are available
+                        price_per_sqm = price_value / square_meters if price_value > 0 and square_meters > 0 else 0
+                        
                         # Extract category if possible
                         category = self._extract_category(title)
                         
@@ -207,7 +266,12 @@ class ClassifiedScraper:
                             'price': price_text,
                             'price_value': price_value,
                             'url': url,
-                            'category': category
+                            'date_posted': date_posted,
+                            'category': category,
+                            'square_meters': square_meters,
+                            'price_per_sqm': price_per_sqm,
+                            'search_phrase': search_phrase,
+                            'scraped_date': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         })
                         
                     except Exception as e:
@@ -226,6 +290,27 @@ class ClassifiedScraper:
             price_digits = re.sub(r'[^\d.]', '', price_text.replace(',', '.'))
             if price_digits:
                 return float(price_digits)
+            return 0.0
+        except:
+            return 0.0
+    
+    def _extract_square_meters(self, text):
+        """Extract square meters from text."""
+        try:
+            # Look for common patterns like "50 m2", "50m2", "50 mkw", etc.
+            patterns = [
+                r'(\d+[\.,]?\d*)\s*m2',
+                r'(\d+[\.,]?\d*)\s*mkw',
+                r'(\d+[\.,]?\d*)\s*m²',
+                r'(\d+[\.,]?\d*)\s*metr[óy]w'
+            ]
+            
+            for pattern in patterns:
+                match = re.search(pattern, text, re.IGNORECASE)
+                if match:
+                    # Replace comma with dot and convert to float
+                    return float(match.group(1).replace(',', '.'))
+            
             return 0.0
         except:
             return 0.0
@@ -291,23 +376,91 @@ class ClassifiedScraper:
         except Exception as e:
             print(f"Error navigating to next page: {e}")
             return False
+    
+    def save_to_database(self):
+        """Save the scraped data to SQLite database."""
+        try:
+            if not self.listings:
+                print("No data to save to database")
+                return False
+                
+            if not self.db_conn:
+                print("Database connection not established")
+                return False
+                
+            cursor = self.db_conn.cursor()
             
-    def count_listings_by_region(self, region):
-        """Count listings from a specific region."""
-        region_pattern = re.compile(region, re.IGNORECASE)
-        count = sum(1 for listing in self.listings if region_pattern.search(listing['location']))
-        return count
-        
-    def save_to_file(self, filename="ogloszenia.csv"):
-        """Save the scraped data to a CSV file."""
+            # Insert each listing into the database
+            for listing in self.listings:
+                cursor.execute('''
+                INSERT INTO listings (
+                    title, location, price, price_value, url, date_posted, 
+                    category, square_meters, price_per_sqm, search_phrase, scraped_date
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    listing['title'], listing['location'], listing['price'], 
+                    listing['price_value'], listing['url'], listing['date_posted'],
+                    listing['category'], listing['square_meters'], listing['price_per_sqm'],
+                    listing['search_phrase'], listing['scraped_date']
+                ))
+                
+            self.db_conn.commit()
+            print(f"Data saved to database (listings.db)")
+            return True
+            
+        except Exception as e:
+            print(f"Error saving data to database: {e}")
+            return False
+            
+    def save_to_file(self, filename="ogloszenia.csv", excel_filename="ogloszenia.xlsx"):
+        """Save the scraped data to CSV and Excel files."""
         try:
             if not self.listings:
                 print("No data to save")
                 return False
                 
+            # Create DataFrame
             df = pd.DataFrame(self.listings)
+            
+            # Save to CSV
             df.to_csv(filename, index=False, encoding='utf-8')
             print(f"Data saved to {filename}")
+            
+            # Save to Excel with additional summary statistics
+            with pd.ExcelWriter(excel_filename, engine='openpyxl') as writer:
+                # Main data sheet
+                df.to_excel(writer, sheet_name='Listings', index=False)
+                
+                # Summary statistics sheet
+                summary_data = {
+                    'Metric': [
+                        'Total Listings', 
+                        'Average Price', 
+                        'Median Price',
+                        'Highest Price',
+                        'Lowest Price',
+                        'Average Square Meters',
+                        'Average Price per Sqm',
+                        'Median Price per Sqm',
+                        'Highest Price per Sqm'
+                    ],
+                    'Value': [
+                        len(df),
+                        df['price_value'].mean(),
+                        df['price_value'].median(),
+                        df['price_value'].max(),
+                        df['price_value'].min(),
+                        df[df['square_meters'] > 0]['square_meters'].mean(),
+                        df[df['price_per_sqm'] > 0]['price_per_sqm'].mean(),
+                        df[df['price_per_sqm'] > 0]['price_per_sqm'].median(),
+                        df[df['price_per_sqm'] > 0]['price_per_sqm'].max()
+                    ]
+                }
+                
+                summary_df = pd.DataFrame(summary_data)
+                summary_df.to_excel(writer, sheet_name='Summary', index=False)
+                
+            print(f"Data with summary statistics saved to {excel_filename}")
             return True
             
         except Exception as e:
@@ -341,6 +494,12 @@ class ClassifiedScraper:
             # 4. Region comparison chart if region is specified
             if region:
                 self._create_region_comparison_chart(df, region, charts_dir)
+            
+            # 5. Price per square meter chart
+            self._create_price_per_sqm_chart(df, charts_dir)
+            
+            # 6. Highest price listings
+            self._create_highest_price_chart(df, charts_dir)
             
             return True
             
@@ -455,6 +614,80 @@ class ClassifiedScraper:
         except Exception as e:
             print(f"Error creating region comparison chart: {e}")
     
+    def _create_price_per_sqm_chart(self, df, charts_dir):
+        """Create chart showing price per square meter distribution."""
+        try:
+            # Filter out rows with no square meter data or price data
+            df_with_sqm = df[(df['square_meters'] > 0) & (df['price_value'] > 0)]
+            
+            if len(df_with_sqm) > 0:
+                plt.figure(figsize=(10, 6))
+                
+                # Remove outliers for better visualization
+                df_filtered = df_with_sqm[df_with_sqm['price_per_sqm'] < df_with_sqm['price_per_sqm'].quantile(0.95)]
+                
+                # Create histogram
+                sns.histplot(df_filtered['price_per_sqm'], bins=20, kde=True)
+                plt.title('Price per Square Meter Distribution (excluding top 5% outliers)')
+                plt.xlabel('Price per Square Meter (zł/m²)')
+                plt.ylabel('Number of Listings')
+                plt.tight_layout()
+                
+                # Save chart
+                chart_path = os.path.join(charts_dir, 'price_per_sqm_distribution.png')
+                plt.savefig(chart_path)
+                plt.close()
+                print(f"Chart saved: {chart_path}")
+                
+                # Create scatter plot of price vs. square meters
+                plt.figure(figsize=(10, 6))
+                sns.scatterplot(data=df_filtered, x='square_meters', y='price_value')
+                plt.title('Price vs. Square Meters')
+                plt.xlabel('Square Meters (m²)')
+                plt.ylabel('Price (zł)')
+                plt.tight_layout()
+                
+                # Save chart
+                chart_path = os.path.join(charts_dir, 'price_vs_sqm_scatter.png')
+                plt.savefig(chart_path)
+                plt.close()
+                print(f"Chart saved: {chart_path}")
+            else:
+                print("Insufficient data for price per square meter charts")
+            
+        except Exception as e:
+            print(f"Error creating price per square meter chart: {e}")
+    
+    def _create_highest_price_chart(self, df, charts_dir):
+        """Create chart showing listings with highest prices."""
+        try:
+            plt.figure(figsize=(12, 8))
+            
+            # Get top 10 highest priced listings
+            top_listings = df.nlargest(10, 'price_value')
+            
+            # Create bar chart with truncated titles
+            truncated_titles = top_listings['title'].apply(lambda x: x[:30] + '...' if len(x) > 30 else x)
+            ax = sns.barplot(x=top_listings['price_value'], y=truncated_titles)
+            
+            # Add price annotations
+            for i, price in enumerate(top_listings['price_value']):
+                ax.text(price + (top_listings['price_value'].max() * 0.01), i, f"{price:,.0f} zł", va='center')
+            
+            plt.title('Top 10 Highest Priced Listings')
+            plt.xlabel('Price (zł)')
+            plt.ylabel('Listing Title')
+            plt.tight_layout()
+            
+            # Save chart
+            chart_path = os.path.join(charts_dir, 'highest_price_listings.png')
+            plt.savefig(chart_path)
+            plt.close()
+            print(f"Chart saved: {chart_path}")
+            
+        except Exception as e:
+            print(f"Error creating highest price chart: {e}")
+    
     def generate_report(self, search_phrase, region, report_format="txt"):
         """Generate a report with insights from the scraped data."""
         if not self.listings:
@@ -542,6 +775,22 @@ class ClassifiedScraper:
         min_price = df['price_value'].min()
         max_price = df['price_value'].max()
         
+        # Price per square meter metrics (for listings with this data)
+        df_with_sqm = df[(df['square_meters'] > 0) & (df['price_value'] > 0)]
+        
+        if len(df_with_sqm) > 0:
+            avg_sqm = df_with_sqm['square_meters'].mean()
+            avg_price_per_sqm = df_with_sqm['price_per_sqm'].mean()
+            median_price_per_sqm = df_with_sqm['price_per_sqm'].median()
+            min_price_per_sqm = df_with_sqm['price_per_sqm'].min()
+            max_price_per_sqm = df_with_sqm['price_per_sqm'].max()
+        else:
+            avg_sqm = 0
+            avg_price_per_sqm = 0
+            median_price_per_sqm = 0
+            min_price_per_sqm = 0
+            max_price_per_sqm = 0
+        
         # Get top locations
         top_locations = df['location'].value_counts().head(5)
         
@@ -561,6 +810,13 @@ Listings in target region: {region_count} ({(region_count/total_listings*100):.1
 Average price: {avg_price:.2f} zł
 Median price: {median_price:.2f} zł
 Price range: {min_price:.2f} zł - {max_price:.2f} zł
+
+## Square Meter Analysis
+Listings with square meter data: {len(df_with_sqm)} ({(len(df_with_sqm)/total_listings*100):.1f}% of total)
+Average square meters: {avg_sqm:.2f} m²
+Average price per square meter: {avg_price_per_sqm:.2f} zł/m²
+Median price per square meter: {median_price_per_sqm:.2f} zł/m²
+Price per square meter range: {min_price_per_sqm:.2f} zł/m² - {max_price_per_sqm:.2f} zł/m²
 
 ## Top 5 Locations
 """
@@ -585,11 +841,45 @@ Price range: {min_price:.2f} zł - {max_price:.2f} zł
             price_diff = region_avg_price - other_avg_price
             price_diff_pct = (price_diff / other_avg_price) * 100 if other_avg_price != 0 else 0
             
-            report += f"""
+            # Calculate region-specific square meter metrics if data is available
+            region_df_with_sqm = region_df[(region_df['square_meters'] > 0) & (region_df['price_value'] > 0)]
+            
+            if len(region_df_with_sqm) > 0:
+                region_avg_sqm = region_df_with_sqm['square_meters'].mean()
+                region_avg_price_per_sqm = region_df_with_sqm['price_per_sqm'].mean()
+                
+                # Compare with other regions
+                other_df_with_sqm = other_df[(other_df['square_meters'] > 0) & (other_df['price_value'] > 0)]
+                
+                if len(other_df_with_sqm) > 0:
+                    other_avg_price_per_sqm = other_df_with_sqm['price_per_sqm'].mean()
+                    sqm_price_diff = region_avg_price_per_sqm - other_avg_price_per_sqm
+                    sqm_price_diff_pct = (sqm_price_diff / other_avg_price_per_sqm) * 100 if other_avg_price_per_sqm != 0 else 0
+                else:
+                    other_avg_price_per_sqm = 0
+                    sqm_price_diff = 0
+                    sqm_price_diff_pct = 0
+                
+                report += f"""
 ## Region Analysis: {region}
 Average price in {region}: {region_avg_price:.2f} zł
 Average price in other regions: {other_avg_price:.2f} zł
 Price difference: {price_diff:.2f} zł ({price_diff_pct:.1f}%)
+
+### Square Meter Analysis for {region}
+Average square meters in {region}: {region_avg_sqm:.2f} m²
+Average price per square meter in {region}: {region_avg_price_per_sqm:.2f} zł/m²
+Average price per square meter in other regions: {other_avg_price_per_sqm:.2f} zł/m²
+Price per square meter difference: {sqm_price_diff:.2f} zł/m² ({sqm_price_diff_pct:.1f}%)
+"""
+            else:
+                report += f"""
+## Region Analysis: {region}
+Average price in {region}: {region_avg_price:.2f} zł
+Average price in other regions: {other_avg_price:.2f} zł
+Price difference: {price_diff:.2f} zł ({price_diff_pct:.1f}%)
+
+Note: No square meter data available for listings in {region}.
 """
             
             # Category distribution in the target region
@@ -604,6 +894,9 @@ Charts have been saved in the 'charts' directory:
 - Average price by location: avg_price_by_location.png
 - Category distribution: category_distribution.png
 - Price distribution: price_distribution.png
+- Price per square meter distribution: price_per_sqm_distribution.png
+- Price vs. square meters scatter plot: price_vs_sqm_scatter.png
+- Highest price listings: highest_price_listings.png
 - Region comparison: region_price_comparison.png
 
 ## Report Generated
@@ -611,17 +904,28 @@ Date: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 """
         
         return report
+    
+    def count_listings_by_region(self, region):
+        """Count listings from a specific region."""
+        region_pattern = re.compile(region, re.IGNORECASE)
+        count = sum(1 for listing in self.listings if region_pattern.search(listing['location']))
+        return count
             
     def cleanup(self):
-        """Close the browser and perform cleanup."""
+        """Close the browser and database connection, and perform cleanup."""
         if self.driver:
             self.driver.quit()
             print("Browser closed")
+            
+        if self.db_conn:
+            self.db_conn.close()
+            print("Database connection closed")
             
     def run_scraper(self, search_phrase, region, pages=3, generate_charts=True, generate_report=True, report_format="txt"):
         """Run the full scraping process."""
         try:
             self.setup_driver()
+            self.setup_database()
             self.navigate_to_site()
             self.handle_popups()
             self.search_listings(search_phrase)
@@ -630,7 +934,7 @@ Date: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
             page_count = 1
             while page_count <= pages:
                 print(f"Scraping page {page_count}")
-                self.scrape_page()
+                self.scrape_page(search_phrase)
                 
                 if page_count < pages:
                     has_next = self.navigate_to_next_page()
@@ -642,7 +946,10 @@ Date: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
             region_count = self.count_listings_by_region(region)
             print(f"Found {region_count} listings containing \"{region}\"")
             
-            # Save data
+            # Save data to database
+            self.save_to_database()
+            
+            # Save data to files
             self.save_to_file()
             
             # Generate charts if requested
