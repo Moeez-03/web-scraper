@@ -1,4 +1,5 @@
 import time
+import random
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -27,16 +28,38 @@ class ClassifiedScraper:
         self.listings = []
         self.db_conn = None
         
+        # User agent rotation list
+        self.user_agents = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:90.0) Gecko/20100101 Firefox/90.0",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Safari/605.1.15",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Safari/537.36"
+        ]
+        
     def setup_driver(self):
-        """Set up the Selenium WebDriver."""
+        """Set up the Selenium WebDriver with rotating user agent."""
         chrome_options = Options()
         # Run in headless mode - comment out if you want to see the browser
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--window-size=1920,1080")
         chrome_options.add_argument("--disable-notifications")
         
+        # Select a random user agent
+        user_agent = random.choice(self.user_agents)
+        chrome_options.add_argument(f"user-agent={user_agent}")
+        
+        # Additional options to avoid detection
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        chrome_options.add_experimental_option("useAutomationExtension", False)
+        
         try:
             self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+            
+            # Modify navigator properties to avoid detection
+            self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            print(f"WebDriver setup with user agent: {user_agent}")
         except Exception as e:
             print(f"Error setting up WebDriver: {e}")
             exit(1)
@@ -73,6 +96,12 @@ class ClassifiedScraper:
             print(f"Error setting up database: {e}")
             if self.db_conn:
                 self.db_conn.close()
+    
+    def random_wait(self, min_seconds=2, max_seconds=5):
+        """Wait for a random amount of time between requests to appear more human-like."""
+        wait_time = random.uniform(min_seconds, max_seconds)
+        time.sleep(wait_time)
+        return wait_time
                 
     def navigate_to_site(self):
         """Navigate to the classified ads website."""
@@ -87,7 +116,10 @@ class ClassifiedScraper:
                 self.site = "olx"
                 
             print(f"Navigated to {self.site}")
-            time.sleep(2)  # Wait for the page to load
+            
+            # Dynamic wait for page to load completely
+            wait_time = self.random_wait(3, 6)
+            print(f"Waiting {wait_time:.2f} seconds for page to fully load")
         except Exception as e:
             print(f"Error navigating to site: {e}")
             self.cleanup()
@@ -99,22 +131,24 @@ class ClassifiedScraper:
             if self.site == "olx":
                 # Handle cookie popup on OLX
                 try:
-                    cookie_button = WebDriverWait(self.driver, 5).until(
+                    cookie_button = WebDriverWait(self.driver, 8).until(
                         EC.element_to_be_clickable((By.ID, "onetrust-accept-btn-handler"))
                     )
                     cookie_button.click()
                     print("Accepted cookies")
+                    self.random_wait(1, 2)  # Short wait after clicking
                 except TimeoutException:
                     print("No cookie popup found or it has timed out")
                     
             elif self.site == "allegro":
                 # Handle cookie popup on Allegro
                 try:
-                    cookie_button = WebDriverWait(self.driver, 5).until(
+                    cookie_button = WebDriverWait(self.driver, 8).until(
                         EC.element_to_be_clickable((By.CSS_SELECTOR, "button[data-role='accept-consent']"))
                     )
                     cookie_button.click()
                     print("Accepted cookies")
+                    self.random_wait(1, 2)  # Short wait after clicking
                 except TimeoutException:
                     print("No cookie popup found or it has timed out")
                     
@@ -130,7 +164,14 @@ class ClassifiedScraper:
                     EC.presence_of_element_located((By.CSS_SELECTOR, "input[data-testid='search-input']"))
                 )
                 search_input.clear()
-                search_input.send_keys(search_phrase)
+                
+                # Type search phrase with random delays between characters
+                for char in search_phrase:
+                    search_input.send_keys(char)
+                    time.sleep(random.uniform(0.05, 0.2))  # Random delay between keystrokes
+                
+                # Short pause before clicking search button to mimic human behavior
+                self.random_wait(0.5, 1.5)
                 
                 # Click search button
                 search_button = self.driver.find_element(By.CSS_SELECTOR, "button[data-testid='search-submit']")
@@ -142,14 +183,38 @@ class ClassifiedScraper:
                     EC.presence_of_element_located((By.CSS_SELECTOR, "input[data-role='search-input']"))
                 )
                 search_input.clear()
-                search_input.send_keys(search_phrase)
+                
+                # Type search phrase with random delays between characters
+                for char in search_phrase:
+                    search_input.send_keys(char)
+                    time.sleep(random.uniform(0.05, 0.2))  # Random delay between keystrokes
+                
+                # Short pause before clicking search button
+                self.random_wait(0.5, 1.5)
                 
                 # Click search button
                 search_button = self.driver.find_element(By.CSS_SELECTOR, "button[data-role='search-button']")
                 search_button.click()
                 
             print(f"Searched for: {search_phrase}")
-            time.sleep(3)  # Wait for search results to load
+            
+            # Wait for search results to load with dynamic timing
+            wait_time = self.random_wait(4, 7)
+            print(f"Waiting {wait_time:.2f} seconds for search results to load")
+            
+            # Check if page has loaded properly
+            try:
+                if self.site == "olx":
+                    WebDriverWait(self.driver, 10).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "div[data-cy='l-card']"))
+                    )
+                elif self.site == "allegro":
+                    WebDriverWait(self.driver, 10).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "article[data-role='offer']"))
+                    )
+                print("Search results page loaded successfully")
+            except TimeoutException:
+                print("Warning: Could not confirm search results loaded. Continuing anyway...")
             
         except Exception as e:
             print(f"Error searching listings: {e}")
@@ -346,9 +411,14 @@ class ClassifiedScraper:
                 try:
                     next_button = self.driver.find_element(By.CSS_SELECTOR, 'a[data-testid="pagination-forward"]')
                     if next_button:
+                        # Random delay before clicking next page
+                        self.random_wait(1, 3)
                         next_button.click()
                         print("Navigating to next page")
-                        time.sleep(3)  # Wait for the next page to load
+                        
+                        # Wait for the next page to load with dynamic timing
+                        wait_time = self.random_wait(4, 7)
+                        print(f"Waiting {wait_time:.2f} seconds for next page to load")
                         return True
                     else:
                         print("No more pages")
@@ -362,9 +432,14 @@ class ClassifiedScraper:
                 try:
                     next_button = self.driver.find_element(By.CSS_SELECTOR, 'a[data-role="next-page"]')
                     if next_button:
+                        # Random delay before clicking next page
+                        self.random_wait(1, 3)
                         next_button.click()
                         print("Navigating to next page")
-                        time.sleep(3)  # Wait for the next page to load
+                        
+                        # Wait for the next page to load with dynamic timing
+                        wait_time = self.random_wait(4, 7)
+                        print(f"Waiting {wait_time:.2f} seconds for next page to load")
                         return True
                     else:
                         print("No more pages")
@@ -501,6 +576,9 @@ class ClassifiedScraper:
             # 6. Highest price listings
             self._create_highest_price_chart(df, charts_dir)
             
+            # 7. Date distribution chart (new)
+            self._create_date_distribution_chart(df, charts_dir)
+            
             return True
             
         except Exception as e:
@@ -516,7 +594,12 @@ class ClassifiedScraper:
             location_price = df.groupby('location')['price_value'].mean().sort_values(ascending=False).head(10)
             
             # Create bar chart
-            sns.barplot(x=location_price.index, y=location_price.values)
+            ax = sns.barplot(x=location_price.index, y=location_price.values)
+            
+            # Add value labels on top of bars
+            for i, v in enumerate(location_price.values):
+                ax.text(i, v + (location_price.max() * 0.02), f"{v:.0f}", ha='center')
+            
             plt.title('Average Price by Top 10 Locations')
             plt.xlabel('Location')
             plt.ylabel('Average Price (zł)')
@@ -540,8 +623,21 @@ class ClassifiedScraper:
             # Count listings per category
             category_counts = df['category'].value_counts()
             
-            # Create pie chart
-            plt.pie(category_counts, labels=category_counts.index, autopct='%1.1f%%', startangle=90)
+            # Create pie chart with percentages
+            wedges, texts, autotexts = plt.pie(
+                category_counts, 
+                labels=category_counts.index, 
+                autopct='%1.1f%%', 
+                startangle=90,
+                shadow=True,
+                explode=[0.05] * len(category_counts)  # Slightly explode all slices
+            )
+            
+            # Style the percentage text
+            for autotext in autotexts:
+                autotext.set_color('white')
+                autotext.set_fontweight('bold')
+            
             plt.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle
             plt.title('Distribution of Listings by Category')
             plt.tight_layout()
@@ -563,8 +659,17 @@ class ClassifiedScraper:
             # Remove outliers for better visualization (optional)
             df_filtered = df[df['price_value'] < df['price_value'].quantile(0.95)]
             
-            # Create histogram
-            sns.histplot(df_filtered['price_value'], bins=20, kde=True)
+            # Create histogram with KDE
+            sns.histplot(df_filtered['price_value'], bins=20, kde=True, color='skyblue')
+            
+            # Add vertical line for mean and median
+            mean_price = df_filtered['price_value'].mean()
+            median_price = df_filtered['price_value'].median()
+            
+            plt.axvline(mean_price, color='red', linestyle='--', label=f'Mean: {mean_price:.0f} zł')
+            plt.axvline(median_price, color='green', linestyle='-', label=f'Median: {median_price:.0f} zł')
+            
+            plt.legend()
             plt.title('Price Distribution (excluding top 5% outliers)')
             plt.xlabel('Price (zł)')
             plt.ylabel('Number of Listings')
@@ -594,19 +699,21 @@ class ClassifiedScraper:
             # Rename index for clarity
             region_comparison.index = [f"Other Regions", f"{region}"]
             
-            # Create bar chart with count annotations
+            # Create bar chart
             ax = sns.barplot(x=region_comparison.index, y=region_comparison['mean'])
             
-            # Add count annotations
-            for i, count in enumerate(region_comparison['count']):
-                ax.text(i, region_comparison['mean'][i] + 50, f"n={count}", ha='center')
+            # Add value labels on top of bars
+            for i, v in enumerate(region_comparison['mean']):
+                ax.text(i, v + (region_comparison['mean'].max() * 0.02), 
+                        f"{v:.0f} zł\n({region_comparison['count'][i]} listings)", ha='center')
             
-            plt.title(f'Average Price Comparison: {region} vs Other Regions')
+            plt.title(f'Average Price: {region} vs Other Regions')
             plt.ylabel('Average Price (zł)')
+            plt.ylim(0, region_comparison['mean'].max() * 1.2)  # Add some headroom for labels
             plt.tight_layout()
             
             # Save chart
-            chart_path = os.path.join(charts_dir, 'region_price_comparison.png')
+            chart_path = os.path.join(charts_dir, 'region_comparison.png')
             plt.savefig(chart_path)
             plt.close()
             print(f"Chart saved: {chart_path}")
@@ -615,72 +722,77 @@ class ClassifiedScraper:
             print(f"Error creating region comparison chart: {e}")
     
     def _create_price_per_sqm_chart(self, df, charts_dir):
-        """Create chart showing price per square meter distribution."""
+        """Create chart showing price per square meter."""
         try:
-            # Filter out rows with no square meter data or price data
-            df_with_sqm = df[(df['square_meters'] > 0) & (df['price_value'] > 0)]
+            plt.figure(figsize=(10, 6))
             
-            if len(df_with_sqm) > 0:
-                plt.figure(figsize=(10, 6))
-                
-                # Remove outliers for better visualization
-                df_filtered = df_with_sqm[df_with_sqm['price_per_sqm'] < df_with_sqm['price_per_sqm'].quantile(0.95)]
-                
-                # Create histogram
-                sns.histplot(df_filtered['price_per_sqm'], bins=20, kde=True)
-                plt.title('Price per Square Meter Distribution (excluding top 5% outliers)')
-                plt.xlabel('Price per Square Meter (zł/m²)')
-                plt.ylabel('Number of Listings')
-                plt.tight_layout()
-                
-                # Save chart
-                chart_path = os.path.join(charts_dir, 'price_per_sqm_distribution.png')
-                plt.savefig(chart_path)
-                plt.close()
-                print(f"Chart saved: {chart_path}")
-                
-                # Create scatter plot of price vs. square meters
-                plt.figure(figsize=(10, 6))
-                sns.scatterplot(data=df_filtered, x='square_meters', y='price_value')
-                plt.title('Price vs. Square Meters')
-                plt.xlabel('Square Meters (m²)')
-                plt.ylabel('Price (zł)')
-                plt.tight_layout()
-                
-                # Save chart
-                chart_path = os.path.join(charts_dir, 'price_vs_sqm_scatter.png')
-                plt.savefig(chart_path)
-                plt.close()
-                print(f"Chart saved: {chart_path}")
-            else:
-                print("Insufficient data for price per square meter charts")
+            # Filter out entries with zero or missing square meters and price
+            valid_data = df[(df['square_meters'] > 0) & (df['price_value'] > 0)]
+            
+            if len(valid_data) == 0:
+                print("No valid square meter data for chart")
+                return
+            
+            # Remove outliers for better visualization
+            filtered_data = valid_data[valid_data['price_per_sqm'] < valid_data['price_per_sqm'].quantile(0.95)]
+            
+            # Create scatter plot with regression line
+            ax = sns.regplot(
+                x='square_meters', 
+                y='price_value', 
+                data=filtered_data, 
+                scatter_kws={'alpha':0.5},
+                line_kws={'color':'red'}
+            )
+            
+            plt.title('Price vs Size (m²)')
+            plt.xlabel('Size (m²)')
+            plt.ylabel('Price (zł)')
+            
+            # Add annotation with average price per sqm
+            avg_price_per_sqm = filtered_data['price_per_sqm'].mean()
+            plt.annotate(
+                f'Avg. Price/m²: {avg_price_per_sqm:.0f} zł',
+                xy=(0.95, 0.05),
+                xycoords='axes fraction',
+                bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray", alpha=0.8),
+                ha='right',
+                fontsize=10
+            )
+            
+            plt.tight_layout()
+            
+            # Save chart
+            chart_path = os.path.join(charts_dir, 'price_per_sqm.png')
+            plt.savefig(chart_path)
+            plt.close()
+            print(f"Chart saved: {chart_path}")
             
         except Exception as e:
             print(f"Error creating price per square meter chart: {e}")
     
     def _create_highest_price_chart(self, df, charts_dir):
-        """Create chart showing listings with highest prices."""
+        """Create chart showing highest priced listings."""
         try:
-            plt.figure(figsize=(12, 8))
+            plt.figure(figsize=(14, 8))
             
-            # Get top 10 highest priced listings
-            top_listings = df.nlargest(10, 'price_value')
+            # Get top 10 most expensive listings
+            top_listings = df.sort_values(by='price_value', ascending=False).head(10)
             
-            # Create bar chart with truncated titles
-            truncated_titles = top_listings['title'].apply(lambda x: x[:30] + '...' if len(x) > 30 else x)
-            ax = sns.barplot(x=top_listings['price_value'], y=truncated_titles)
+            # Create horizontal bar chart
+            ax = sns.barplot(y=top_listings['title'].str[:50] + '...', x=top_listings['price_value'])
             
-            # Add price annotations
-            for i, price in enumerate(top_listings['price_value']):
-                ax.text(price + (top_listings['price_value'].max() * 0.01), i, f"{price:,.0f} zł", va='center')
+            # Add value labels
+            for i, v in enumerate(top_listings['price_value']):
+                ax.text(v + (top_listings['price_value'].max() * 0.02), i, f"{v:,.0f} zł", va='center')
             
-            plt.title('Top 10 Highest Priced Listings')
+            plt.title('Top 10 Most Expensive Listings')
             plt.xlabel('Price (zł)')
-            plt.ylabel('Listing Title')
+            plt.ylabel('Title')
             plt.tight_layout()
             
             # Save chart
-            chart_path = os.path.join(charts_dir, 'highest_price_listings.png')
+            chart_path = os.path.join(charts_dir, 'highest_prices.png')
             plt.savefig(chart_path)
             plt.close()
             print(f"Chart saved: {chart_path}")
@@ -688,313 +800,164 @@ class ClassifiedScraper:
         except Exception as e:
             print(f"Error creating highest price chart: {e}")
     
-    def generate_report(self, search_phrase, region, report_format="txt"):
-        """Generate a report with insights from the scraped data."""
-        if not self.listings:
-            print("No data available for generating report")
-            return False
-        
+    def _create_date_distribution_chart(self, df, charts_dir):
+        """Create chart showing distribution of listings by date posted."""
         try:
-            # Create reports directory if it doesn't exist
-            reports_dir = "reports"
-            if not os.path.exists(reports_dir):
-                os.makedirs(reports_dir)
+            plt.figure(figsize=(12, 6))
             
-            # Convert listings to DataFrame for analysis
-            df = pd.DataFrame(self.listings)
+            # Extract clean date information if available
+            date_counts = df['date_posted'].value_counts().sort_index()
             
-            # Generate report filename with timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"report_{search_phrase.replace(' ', '_')}_{timestamp}.{report_format}"
-            report_path = os.path.join(reports_dir, filename)
-            
-            # Generate report content
-            report_content = self._generate_report_content(df, search_phrase, region)
-            
-            # Save report in the specified format
-            if report_format == "txt":
-                with open(report_path, 'w', encoding='utf-8') as f:
-                    f.write(report_content)
-            elif report_format == "md":
-                with open(report_path, 'w', encoding='utf-8') as f:
-                    f.write(report_content)
-            elif report_format == "html":
-                # Fixed HTML template - avoiding problematic f-string with backslashes
-                html_head = """<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Classified Ads Report</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        h1, h2, h3 { color: #2c3e50; }
-        table { border-collapse: collapse; width: 100%; margin: 15px 0; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        .chart-container { margin: 20px 0; }
-    </style>
-</head>
-<body>
-"""
-                # Format the report content for HTML
-                html_content = report_content.replace('\n', '<br>')
-                html_content = html_content.replace('# ', '<h1>')
-                html_content = html_content.replace('## ', '<h2>')
-                html_content = html_content.replace('### ', '<h3>')
-                html_content = html_content.replace('<h1>', '<h1>').replace('</h1>', '')
-                html_content = html_content.replace('<h2>', '<h2>').replace('</h2>', '')
-                html_content = html_content.replace('<h3>', '<h3>').replace('</h3>', '')
+            # Filter out non-date entries (like "No Date")
+            valid_dates = [date for date in date_counts.index if date != "No Date" and date != "Not available"]
+            if not valid_dates:
+                print("No valid date information for chart")
+                return
                 
-                html_foot = """
-</body>
-</html>
-"""
-                # Combine all HTML parts
-                full_html = html_head + html_content + html_foot
-                
-                with open(report_path, 'w', encoding='utf-8') as f:
-                    f.write(full_html)
-            else:
-                print(f"Unsupported report format: {report_format}")
-                return False
+            # Create date count chart
+            date_subset = date_counts[valid_dates]
+            ax = sns.barplot(x=date_subset.index, y=date_subset.values)
             
-            print(f"Report saved: {report_path}")
-            return True
+            # Add counts on top of bars
+            for i, v in enumerate(date_subset.values):
+                ax.text(i, v + 0.5, str(v), ha='center')
+            
+            plt.title('Listings by Date Posted')
+            plt.xlabel('Date Posted')
+            plt.ylabel('Number of Listings')
+            plt.xticks(rotation=45, ha='right')
+            plt.tight_layout()
+            
+            # Save chart
+            chart_path = os.path.join(charts_dir, 'date_distribution.png')
+            plt.savefig(chart_path)
+            plt.close()
+            print(f"Chart saved: {chart_path}")
             
         except Exception as e:
-            print(f"Error generating report: {e}")
-            return False
+            print(f"Error creating date distribution chart: {e}")
     
-    def _generate_report_content(self, df, search_phrase, region):
-        """Generate the content for the report."""
-        # Calculate various metrics
-        total_listings = len(df)
-        region_count = self.count_listings_by_region(region)
-        avg_price = df['price_value'].mean()
-        median_price = df['price_value'].median()
-        min_price = df['price_value'].min()
-        max_price = df['price_value'].max()
-        
-        # Price per square meter metrics (for listings with this data)
-        df_with_sqm = df[(df['square_meters'] > 0) & (df['price_value'] > 0)]
-        
-        if len(df_with_sqm) > 0:
-            avg_sqm = df_with_sqm['square_meters'].mean()
-            avg_price_per_sqm = df_with_sqm['price_per_sqm'].mean()
-            median_price_per_sqm = df_with_sqm['price_per_sqm'].median()
-            min_price_per_sqm = df_with_sqm['price_per_sqm'].min()
-            max_price_per_sqm = df_with_sqm['price_per_sqm'].max()
-        else:
-            avg_sqm = 0
-            avg_price_per_sqm = 0
-            median_price_per_sqm = 0
-            min_price_per_sqm = 0
-            max_price_per_sqm = 0
-        
-        # Get top locations
-        top_locations = df['location'].value_counts().head(5)
-        
-        # Get category distribution
-        category_dist = df['category'].value_counts()
-        
-        # Format the report
-        report = f"""# Classified Ads Analysis Report
-
-## Overview
-Search phrase: {search_phrase}
-Target region: {region}
-Total listings found: {total_listings}
-Listings in target region: {region_count} ({(region_count/total_listings*100):.1f}% of total)
-
-## Price Analysis
-Average price: {avg_price:.2f} zł
-Median price: {median_price:.2f} zł
-Price range: {min_price:.2f} zł - {max_price:.2f} zł
-
-## Square Meter Analysis
-Listings with square meter data: {len(df_with_sqm)} ({(len(df_with_sqm)/total_listings*100):.1f}% of total)
-Average square meters: {avg_sqm:.2f} m²
-Average price per square meter: {avg_price_per_sqm:.2f} zł/m²
-Median price per square meter: {median_price_per_sqm:.2f} zł/m²
-Price per square meter range: {min_price_per_sqm:.2f} zł/m² - {max_price_per_sqm:.2f} zł/m²
-
-## Top 5 Locations
-"""
-        
-        for location, count in top_locations.items():
-            report += f"- {location}: {count} listings ({(count/total_listings*100):.1f}%)\n"
-        
-        report += "\n## Category Distribution\n"
-        for category, count in category_dist.items():
-            report += f"- {category}: {count} listings ({(count/total_listings*100):.1f}%)\n"
-        
-        # Region-specific analysis
-        if region_count > 0:
-            region_pattern = re.compile(region, re.IGNORECASE)
-            df['is_target_region'] = df['location'].apply(lambda x: bool(region_pattern.search(x)))
-            region_df = df[df['is_target_region']]
-            other_df = df[~df['is_target_region']]
-            
-            region_avg_price = region_df['price_value'].mean()
-            other_avg_price = other_df['price_value'].mean()
-            
-            price_diff = region_avg_price - other_avg_price
-            price_diff_pct = (price_diff / other_avg_price) * 100 if other_avg_price != 0 else 0
-            
-            # Calculate region-specific square meter metrics if data is available
-            region_df_with_sqm = region_df[(region_df['square_meters'] > 0) & (region_df['price_value'] > 0)]
-            
-            if len(region_df_with_sqm) > 0:
-                region_avg_sqm = region_df_with_sqm['square_meters'].mean()
-                region_avg_price_per_sqm = region_df_with_sqm['price_per_sqm'].mean()
-                
-                # Compare with other regions
-                other_df_with_sqm = other_df[(other_df['square_meters'] > 0) & (other_df['price_value'] > 0)]
-                
-                if len(other_df_with_sqm) > 0:
-                    other_avg_price_per_sqm = other_df_with_sqm['price_per_sqm'].mean()
-                    sqm_price_diff = region_avg_price_per_sqm - other_avg_price_per_sqm
-                    sqm_price_diff_pct = (sqm_price_diff / other_avg_price_per_sqm) * 100 if other_avg_price_per_sqm != 0 else 0
-                else:
-                    other_avg_price_per_sqm = 0
-                    sqm_price_diff = 0
-                    sqm_price_diff_pct = 0
-                
-                report += f"""
-## Region Analysis: {region}
-Average price in {region}: {region_avg_price:.2f} zł
-Average price in other regions: {other_avg_price:.2f} zł
-Price difference: {price_diff:.2f} zł ({price_diff_pct:.1f}%)
-
-### Square Meter Analysis for {region}
-Average square meters in {region}: {region_avg_sqm:.2f} m²
-Average price per square meter in {region}: {region_avg_price_per_sqm:.2f} zł/m²
-Average price per square meter in other regions: {other_avg_price_per_sqm:.2f} zł/m²
-Price per square meter difference: {sqm_price_diff:.2f} zł/m² ({sqm_price_diff_pct:.1f}%)
-"""
-            else:
-                report += f"""
-## Region Analysis: {region}
-Average price in {region}: {region_avg_price:.2f} zł
-Average price in other regions: {other_avg_price:.2f} zł
-Price difference: {price_diff:.2f} zł ({price_diff_pct:.1f}%)
-
-Note: No square meter data available for listings in {region}.
-"""
-            
-            # Category distribution in the target region
-            region_categories = region_df['category'].value_counts()
-            report += f"\n### Category Distribution in {region}\n"
-            for category, count in region_categories.items():
-                report += f"- {category}: {count} listings ({(count/len(region_df)*100):.1f}%)\n"
-        
-        report += f"""
-## Charts
-Charts have been saved in the 'charts' directory:
-- Average price by location: avg_price_by_location.png
-- Category distribution: category_distribution.png
-- Price distribution: price_distribution.png
-- Price per square meter distribution: price_per_sqm_distribution.png
-- Price vs. square meters scatter plot: price_vs_sqm_scatter.png
-- Highest price listings: highest_price_listings.png
-- Region comparison: region_price_comparison.png
-
-## Report Generated
-Date: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-"""
-        
-        return report
-    
-    def count_listings_by_region(self, region):
-        """Count listings from a specific region."""
-        region_pattern = re.compile(region, re.IGNORECASE)
-        count = sum(1 for listing in self.listings if region_pattern.search(listing['location']))
-        return count
-            
-    def cleanup(self):
-        """Close the browser and database connection, and perform cleanup."""
-        if self.driver:
-            self.driver.quit()
-            print("Browser closed")
-            
-        if self.db_conn:
-            self.db_conn.close()
-            print("Database connection closed")
-            
-    def run_scraper(self, search_phrase, region, pages=3, generate_charts=True, generate_report=True, report_format="txt"):
-        """Run the full scraping process."""
+    def run_scraper(self, search_phrases, max_pages=3, region=None):
+        """Run the full scraper pipeline for multiple search phrases."""
         try:
+            # Setup initial components
             self.setup_driver()
             self.setup_database()
             self.navigate_to_site()
             self.handle_popups()
-            self.search_listings(search_phrase)
             
-            # Scrape multiple pages
-            page_count = 1
-            while page_count <= pages:
-                print(f"Scraping page {page_count}")
-                self.scrape_page(search_phrase)
+            # Process each search phrase
+            for phrase in search_phrases:
+                print(f"\n{'='*50}")
+                print(f"Processing search phrase: {phrase}")
+                print(f"{'='*50}")
                 
-                if page_count < pages:
-                    has_next = self.navigate_to_next_page()
-                    if not has_next:
-                        break
-                page_count += 1
+                # Clear previous listings
+                self.listings = []
                 
-            # Count and report results
-            region_count = self.count_listings_by_region(region)
-            print(f"Found {region_count} listings containing \"{region}\"")
-            
-            # Save data to database
-            self.save_to_database()
-            
-            # Save data to files
-            self.save_to_file()
-            
-            # Generate charts if requested
-            if generate_charts:
-                self.generate_charts(search_phrase, region)
+                # Search for this phrase
+                self.search_listings(phrase)
                 
-            # Generate report if requested
-            if generate_report:
-                self.generate_report(search_phrase, region, report_format)
+                # Scrape first page
+                self.scrape_page(phrase)
+                
+                # Navigate through additional pages
+                page_count = 1
+                while page_count < max_pages:
+                    if not self.navigate_to_next_page():
+                        break  # No more pages
+                    self.scrape_page(phrase)
+                    page_count += 1
+                
+                # Save data to database
+                self.save_to_database()
+                
+                # Save data to files
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"{phrase.replace(' ', '_')}_{timestamp}.csv"
+                excel_filename = f"{phrase.replace(' ', '_')}_{timestamp}.xlsx"
+                self.save_to_file(filename, excel_filename)
+                
+                # Generate charts
+                self.generate_charts(phrase, region)
+                
+                # Random wait before next search phrase
+                wait_time = self.random_wait(5, 10)
+                print(f"Waiting {wait_time:.2f} seconds before next search")
+            
+            print("\nScraping completed successfully!")
             
         except Exception as e:
-            print(f"Error running scraper: {e}")
+            print(f"Error in scraper run: {e}")
         finally:
             self.cleanup()
-            
+    
+    def cleanup(self):
+        """Clean up resources."""
+        try:
+            if self.driver:
+                self.driver.quit()
+                print("WebDriver closed")
+                
+            if self.db_conn:
+                self.db_conn.close()
+                print("Database connection closed")
+                
+        except Exception as e:
+            print(f"Error in cleanup: {e}")
+
+
 def main():
-    """Main function to run the scraper."""
-    print("=" * 50)
-    print("Enhanced Classified Ads Scraper")
-    print("=" * 50)
+    """Main function to run the scraper with interactive user input."""
+    print("="*50)
+    print("Welcome to ClassifiedScraper!")
+    print("="*50)
     
-    # Get user input
-    site = input("Choose website (olx/allegro) [default: olx]: ").strip() or "olx"
-    search_phrase = input("Enter search phrase: ").strip()
-    region = input("Enter region to count: ").strip()
+    # Ask for site to scrape
+    print("\nWhich site would you like to scrape?")
+    print("1. OLX")
+    print("2. Allegro")
+    site_choice = input("Enter your choice (1/2): ").strip()
     
-    try:
-        pages = int(input("Enter number of pages to scrape [default: 3]: ").strip() or "3")
-    except ValueError:
-        print("Invalid number, using default (3)")
-        pages = 3
+    site = "olx"  # Default
+    if site_choice == "2":
+        site = "allegro"
     
-    # Ask about visualization and reporting
-    generate_charts = input("Generate data visualization charts? (y/n) [default: y]: ").strip().lower() != 'n'
-    generate_report = input("Generate analysis report? (y/n) [default: y]: ").strip().lower() != 'n'
+    # Ask for search phrases
+    print("\nWhat would you like to search for?")
+    print("You can enter multiple search phrases separated by commas")
+    search_input = input("Enter search phrase(s): ").strip()
+    search_phrases = [phrase.strip() for phrase in search_input.split(',')]
     
-    report_format = "txt"
-    if generate_report:
-        format_choice = input("Choose report format (txt/md/html) [default: txt]: ").strip().lower()
-        if format_choice in ["txt", "md", "html"]:
-            report_format = format_choice
+    # Ask for number of pages
+    print("\nHow many pages should be scraped for each search phrase?")
+    pages_input = input("Enter number of pages (default is 3): ").strip()
+    max_pages = 3  # Default
+    if pages_input.isdigit() and int(pages_input) > 0:
+        max_pages = int(pages_input)
     
-    # Initialize and run scraper
-    scraper = ClassifiedScraper(site)
-    scraper.run_scraper(search_phrase, region, pages, generate_charts, generate_report, report_format)
+    # Ask for region
+    print("\nWould you like to do a region-specific analysis?")
+    region_choice = input("Enter region name (or leave empty for no region analysis): ").strip()
+    region = None if not region_choice else region_choice
+    
+    # Confirm choices before starting
+    print("\n" + "="*50)
+    print("Scraping Configuration:")
+    print(f"Site: {site}")
+    print(f"Search phrases: {search_phrases}")
+    print(f"Max pages per search: {max_pages}")
+    print(f"Region analysis: {'Yes - ' + region if region else 'No'}")
+    print("="*50)
+    
+    confirm = input("\nStart scraping with these settings? (y/n): ").strip().lower()
+    if confirm == 'y' or confirm == 'yes':
+        # Create and run scraper
+        scraper = ClassifiedScraper(site=site)
+        scraper.run_scraper(search_phrases, max_pages=max_pages, region=region)
+    else:
+        print("Scraping cancelled. Please run the program again to start over.")
+
 
 if __name__ == "__main__":
     main()
