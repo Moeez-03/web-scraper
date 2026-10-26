@@ -20,31 +20,18 @@ class VercelPathFixMiddleware:
         self.wsgi_app = wsgi_app
 
     def __call__(self, environ, start_response):
-        # 1. Check Vercel matched path header
-        matched_path = (
-            environ.get('HTTP_X_MATCHED_PATH')
-            or environ.get('x-matched-path')
-            or environ.get('HTTP_X_NOW_ROUTE_MATCHES')
-        )
-        if matched_path:
-            path_only = matched_path.split('?')[0]
-            environ['PATH_INFO'] = path_only
-        else:
-            # 2. Check query string for ?path=
-            qs = environ.get('QUERY_STRING', '')
-            if 'path=' in qs:
-                try:
-                    params = parse_qs(qs, keep_blank_values=True)
-                    if 'path' in params:
-                        req_path = params.pop('path')[0]
-                        environ['PATH_INFO'] = '/' + req_path.lstrip('/')
-                        environ['QUERY_STRING'] = urlencode(params, doseq=True)
-                except Exception:
-                    pass
-
-        # 3. Fallback: if PATH_INFO still points to the function itself or empty, map to root
-        path_info = environ.get('PATH_INFO', '')
-        if path_info in ('/api/index', '/api/index.py', '/api', ''):
+        qs = environ.get('QUERY_STRING', '')
+        if '__vercel_path=' in qs:
+            try:
+                params = parse_qs(qs, keep_blank_values=True)
+                if '__vercel_path' in params:
+                    raw_path = params.pop('__vercel_path')[0]
+                    clean_path = '/' + raw_path.lstrip('/')
+                    environ['PATH_INFO'] = clean_path
+                    environ['QUERY_STRING'] = urlencode(params, doseq=True)
+            except Exception as e:
+                print(f"[!] Path rewrite error: {e}", file=sys.stderr)
+        elif environ.get('PATH_INFO') in ('/api/index', '/api/index.py', '/api', ''):
             environ['PATH_INFO'] = '/'
 
         return self.wsgi_app(environ, start_response)
