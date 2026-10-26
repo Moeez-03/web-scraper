@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MarketPulse Enterprise — Automated Web Intelligence & Pricing DataOps Engine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #070a13;
+      --sidebar: #0b1120;
+      --card-bg: #0f172a;
+      --card-border: #1e293b;
+      --accent: #10b981;
+      --accent-glow: rgba(16, 185, 129, 0.25);
+      --accent-hover: #059669;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --badge-bg: rgba(16, 185, 129, 0.12);
+      --table-hover: #131d33;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      overflow-x: hidden;
+    }
+
+    /* Sidebar Navigation */
+    .sidebar {
+      width: 270px;
+      background: var(--sidebar);
+      border-right: 1px solid var(--card-border);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 100;
+    }
+
+    .sidebar-brand {
+      padding: 1.5rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #10b981, #047857);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 1.25rem;
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-badge {
+      font-size: 0.65rem;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--accent);
+      background: var(--badge-bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .nav-menu {
+      padding: 1.25rem 0.75rem;
+      list-style: none;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .nav-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      padding: 0.5rem 0.85rem;
+      font-weight: 700;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .nav-item:hover, .nav-item.active {
+      background: rgba(16, 185, 129, 0.1);
+      color: #34d399;
+    }
+
+    .nav-item i {
+      font-size: 1.05rem;
+      width: 22px;
+      text-align: center;
+    }
+
+    .sidebar-footer {
+      padding: 1.25rem;
+      border-top: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: var(--text-dim);
+    }
+
+    .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+      margin-right: 6px;
+    }
+
+    /* Main Area */
+    .main-wrapper {
+      margin-left: 270px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    /* Live Ticker Bar */
+    .ticker-bar {
+      height: 40px;
+      background: #090f1d;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      position: relative;
+      overflow: hidden;
+      white-space: nowrap;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+    }
+
+    .ticker-tag {
+      background: #090f1d;
+      color: #34d399;
+      padding: 0 1.25rem;
+      height: 100%;
+      font-weight: 700;
+      margin-right: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      position: relative;
+      z-index: 20;
+      flex-shrink: 0;
+      border-right: 1px solid var(--card-border);
+    }
+
+    .ticker-scroll {
+      display: flex;
+      gap: 2.5rem;
+      animation: ticker 30s linear infinite;
+    }
+
+    @keyframes ticker {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    .ticker-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-muted);
+    }
+
+    .ticker-item .val {
+      color: var(--text-main);
+      font-weight: 700;
+    }
+
+    .ticker-item .up { color: #34d399; }
+    .ticker-item .down { color: #f87171; }
+
+    /* Top Bar */
+    .topbar {
+      height: 65px;
+      border-bottom: 1px solid var(--card-border);
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(11, 17, 32, 0.6);
+      backdrop-filter: blur(10px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .topbar-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .btn {
+      padding: 0.55rem 1.15rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s;
+      border: none;
+      text-decoration: none;
+    }
+
+    .btn-emerald {
+      background: var(--accent);
+      color: #064e3b;
+      box-shadow: 0 0 14px var(--accent-glow);
+    }
+    .btn-emerald:hover { background: var(--accent-hover); color: white; }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+    }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Content Area */
+    .content-body {
+      padding: 2rem;
+      flex: 1;
+    }
+
+    .view-panel { display: none; }
+    .view-panel.active { display: block; animation: fadeIn 0.3s ease; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* KPI Grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2rem;
+    }
+
+    .kpi-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 1.5rem;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.2s;
+    }
+
+    .kpi-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(16, 185, 129, 0.4);
+    }
+
+    .kpi-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+
+    .kpi-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+    }
+
+    .kpi-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: rgba(16, 185, 129, 0.1);
+      color: #34d399;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+    }
+
+    .kpi-value {
+      font-size: 1.85rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-main);
+    }
+
+    /* Dual Chart Grid */
+    .chart-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    @media (max-width: 1024px) {
+      .chart-grid-2 { grid-template-columns: 1fr; }
+    }
+
+    .chart-box {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 1.5rem;
+    }
+
+    .chart-box-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.25rem;
+    }
+
+    .chart-box-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* Studio & Live Terminal */
+    .studio-layout {
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 1.5rem;
+      align-items: start;
+    }
+
+    @media (max-width: 1100px) {
+      .studio-layout { grid-template-columns: 1fr; }
+    }
+
+    .studio-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 1.75rem;
+    }
+
+    .form-group { margin-bottom: 1.25rem; }
+    .form-label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 0.4rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .form-select, .form-input {
+      width: 100%;
+      background: #090f1d;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      color: var(--text-main);
+      font-size: 0.9rem;
+      outline: none;
+      font-family: inherit;
+    }
+
+    .form-select:focus, .form-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 8px var(--accent-glow);
+    }
+
+    .terminal-box {
+      background: #050811;
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 580px;
+    }
+
+    .terminal-header {
+      background: #090f1d;
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .terminal-dots { display: flex; gap: 6px; }
+    .t-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .t-red { background: #ef4444; }
+    .t-yellow { background: #f59e0b; }
+    .t-green { background: #10b981; }
+
+    .terminal-body {
+      padding: 1.25rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      color: #34d399;
+      line-height: 1.6;
+      flex: 1;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+
+    /* Data Table Section */
+    .data-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .data-toolbar {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .search-box {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      background: #090f1d;
+      border: 1px solid var(--card-border);
+      padding: 0.55rem 1rem;
+      border-radius: 8px;
+      width: 320px;
+    }
+
+    .search-box input {
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      font-size: 0.85rem;
+      outline: none;
+      width: 100%;
+    }
+
+    .filter-pills {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .export-btns {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .table-responsive {
+      overflow-x: auto;
+      max-height: 640px;
+    }
+
+    .intel-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      text-align: left;
+    }
+
+    .intel-table th {
+      background: #090f1d;
+      padding: 0.85rem 1.25rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--card-border);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .intel-table td {
+      padding: 0.9rem 1.25rem;
+      border-bottom: 1px solid #162032;
+      vertical-align: middle;
+    }
+
+    .intel-table tr:hover {
+      background: var(--table-hover);
+    }
+
+    .table-thumb {
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      object-fit: cover;
+      background: #000;
+      border: 1px solid var(--card-border);
+    }
+
+    .platform-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .plat-craigslist { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
+    .plat-retail { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .plat-olx { background: rgba(6, 182, 212, 0.15); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.3); }
+    .plat-crypto { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .plat-universal { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+
+    .price-cell {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      color: #34d399;
+      font-size: 0.92rem;
+    }
+
+    .rating-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-weight: 700;
+      font-size: 0.75rem;
+      color: #fbbf24;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">
+        <i class="fas fa-radar"></i>
+      </div>
+      <div>
+        <div class="brand-title">MarketPulse</div>
+        <div class="brand-badge">Enterprise DataOps</div>
+      </div>
+    </div>
+
+    <ul class="nav-menu">
+      <li class="nav-label">Platforms & Telemetry</li>
+      <a class="nav-item active" onclick="switchView('overview', this)">
+        <i class="fas fa-chart-pie"></i>
+        <span>Executive Overview</span>
+      </a>
+      <a class="nav-item" onclick="switchView('studio', this)">
+        <i class="fas fa-satellite-dish"></i>
+        <span>Crawler Studio</span>
+      </a>
+      <a class="nav-item" onclick="switchView('datasets', this)">
+        <i class="fas fa-database"></i>
+        <span>Intelligence Datasets</span>
+      </a>
+      <a class="nav-item" onclick="switchView('analytics', this)">
+        <i class="fas fa-chart-line"></i>
+        <span>Pricing Analytics</span>
+      </a>
+
+      <li class="nav-label" style="margin-top: 1rem;">Platform Connectors</li>
+      <div style="padding: 0 1rem; display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.78rem;">
+        <span class="platform-pill plat-retail"><i class="fab fa-amazon"></i> Amazon Global Hub</span>
+        <span class="platform-pill plat-craigslist"><i class="fas fa-city"></i> Craigslist US</span>
+        <span class="platform-pill plat-olx"><i class="fas fa-home"></i> OLX Europe (Real Estate)</span>
+        <span class="platform-pill plat-crypto"><i class="fab fa-bitcoin"></i> CoinGecko / Ticker</span>
+        <span class="platform-pill plat-universal"><i class="fas fa-globe"></i> Universal Spider</span>
+      </div>
+    </ul>
+
+    <div class="sidebar-footer">
+      <div><span class="status-dot"></span> Pipeline Active</div>
+      <div style="font-family: 'JetBrains Mono';">v2.5.0</div>
+    </div>
+  </aside>
+
+  <!-- Main Body -->
+  <div class="main-wrapper">
+
+    <!-- Live Ticker Bar -->
+    <div class="ticker-bar">
+      <div class="ticker-tag"><i class="fas fa-bolt"></i> LIVE TELEMETRY</div>
+      <div class="ticker-scroll">
+        <div class="ticker-item"><span>BTC/USD:</span> <span class="val">$80,078</span> <span class="up"><i class="fas fa-arrow-up"></i> +3.2%</span></div>
+        <div class="ticker-item"><span>ETH/USD:</span> <span class="val">$2,321.90</span> <span class="up"><i class="fas fa-arrow-up"></i> +1.8%</span></div>
+        <div class="ticker-item"><span>MacBook Pro M3 Max:</span> <span class="val">$3,499</span> <span class="ticker-item">Amazon Prime</span></div>
+        <div class="ticker-item"><span>iPhone 15 Pro Max:</span> <span class="val">$1,199</span> <span class="up">In Stock</span></div>
+        <div class="ticker-item"><span>Warsaw Real Estate ($/m²):</span> <span class="val">14,250 zł</span> <span class="down"><i class="fas fa-arrow-down"></i> -0.4%</span></div>
+        <div class="ticker-item"><span>RTX 4090 OC 24GB:</span> <span class="val">$1,899</span> <span class="val">Newegg US</span></div>
+        <div class="ticker-item"><span>Tesla Model 3 Long Range:</span> <span class="val">$47,490</span> <span class="up">Delivery Q4</span></div>
+      </div>
+    </div>
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-title" id="pageTitle">Executive Telemetry & Overview</div>
+      <div class="topbar-actions">
+        <button class="btn btn-emerald" onclick="switchView('studio')">
+          <i class="fas fa-play"></i> Launch Crawler
+        </button>
+        <a href="https://github.com/Moeez-03/web-scraper" target="_blank" class="btn btn-outline">
+          <i class="fab fa-github"></i> Verified Source
+        </a>
+      </div>
+    </header>
+
+    <div class="content-body">
+
+      <!-- VIEW 1: EXECUTIVE OVERVIEW -->
+      <section id="view-overview" class="view-panel active">
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-title">Intelligence Records</span>
+              <div class="kpi-icon"><i class="fas fa-server"></i></div>
+            </div>
+            <div class="kpi-value" id="kpiTotal">692+</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-title">Average Asset Price</span>
+              <div class="kpi-icon"><i class="fas fa-coins"></i></div>
+            </div>
+            <div class="kpi-value" id="kpiAvg">$106,630</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-title">Peak Value Asset</span>
+              <div class="kpi-icon"><i class="fas fa-gem"></i></div>
+            </div>
+            <div class="kpi-value" id="kpiPeak">$2,122,125</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-title">Connected Platforms</span>
+              <div class="kpi-icon"><i class="fas fa-network-wired"></i></div>
+            </div>
+            <div class="kpi-value">5 Active</div>
+          </div>
+        </div>
+
+        <div class="chart-grid-2">
+          <div class="chart-box">
+            <div class="chart-box-header">
+              <div class="chart-box-title">
+                <i class="fas fa-chart-area" style="color: var(--accent);"></i>
+                <span>Market Price Distribution Spline</span>
+              </div>
+            </div>
+            <canvas id="chartPriceSpline" height="240"></canvas>
+          </div>
+          <div class="chart-box">
+            <div class="chart-box-header">
+              <div class="chart-box-title">
+                <i class="fas fa-chart-bar" style="color: #60a5fa;"></i>
+                <span>Cross-Platform Ingestion Volume</span>
+              </div>
+            </div>
+            <canvas id="chartPlatformBars" height="240"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 2: CRAWLER STUDIO (LIVE INTERACTIVE SCRAPING) -->
+      <section id="view-studio" class="view-panel">
+        <div class="studio-layout">
+          <!-- Control Card -->
+          <div class="studio-card">
+            <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.6rem;">
+              <i class="fas fa-satellite-dish" style="color: var(--accent);"></i>
+              Crawler Studio Controls
+            </h3>
+            
+            <form id="studioForm" onsubmit="dispatchCrawl(event)">
+              <div class="form-group">
+                <label class="form-label">Target Platform Engine</label>
+                <select id="platformSelect" class="form-select" onchange="handlePlatformChange()">
+                  <option value="craigslist">🏬 Craigslist US (Live City Scraper)</option>
+                  <option value="ecommerce">🛍️ Amazon / Global Retail Hub</option>
+                  <option value="crypto">📈 CoinGecko / Crypto Ticker Engine</option>
+                  <option value="olx">🏠 OLX Europe (Real Estate & Sqm)</option>
+                  <option value="universal">🌐 Universal AI Spider (Any URL)</option>
+                </select>
+              </div>
+
+              <div class="form-group" id="queryGroup">
+                <label class="form-label">Search Keyword / Query</label>
+                <input type="text" id="crawlQuery" class="form-input" placeholder="e.g. macbook pro, iphone, tesla" value="macbook">
+              </div>
+
+              <div class="form-group" id="cityGroup">
+                <label class="form-label">Target City / Jurisdiction</label>
+                <select id="crawlCity" class="form-select">
+                  <option value="New York">New York (NYC)</option>
+                  <option value="San Francisco">San Francisco (SF Bay)</option>
+                  <option value="Chicago">Chicago</option>
+                  <option value="Los Angeles">Los Angeles</option>
+                  <option value="Miami">Miami</option>
+                  <option value="Warsaw">Warsaw (Poland)</option>
+                </select>
+              </div>
+
+              <div class="form-group" id="urlGroup" style="display: none;">
+                <label class="form-label">Target Web URL</label>
+                <input type="url" id="crawlUrl" class="form-input" placeholder="https://example.com/product" value="https://news.ycombinator.com">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Record Extraction Limit</label>
+                <input type="number" id="crawlLimit" class="form-input" value="20" min="5" max="100">
+              </div>
+
+              <div class="form-group" style="display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0;">
+                <span style="font-size: 0.85rem; font-weight: 600;">Anti-Bot Stealth Profile</span>
+                <span class="platform-pill plat-crypto"><i class="fas fa-shield-alt"></i> Active</span>
+              </div>
+
+              <button type="submit" id="btnDispatch" class="btn btn-emerald" style="width: 100%; justify-content: center; padding: 0.85rem; margin-top: 1rem;">
+                <i class="fas fa-bolt"></i> Dispatch Autonomous Crawler
+              </button>
+            </form>
+          </div>
+
+          <!-- Live Streaming Terminal -->
+          <div class="terminal-box">
+            <div class="terminal-header">
+              <div class="terminal-dots">
+                <div class="t-dot t-red"></div>
+                <div class="t-dot t-yellow"></div>
+                <div class="t-dot t-green"></div>
+              </div>
+              <div>marketpulse-crawler-agent.log</div>
+              <div><i class="fas fa-circle-notch fa-spin text-emerald-400"></i> PIPE OPEN</div>
+            </div>
+            <div class="terminal-body" id="terminalLog">[00:00:00] [SYSTEM] Connecting to MarketPulse Agent Server...
+[00:00:01] [READY] Multi-target Headless cluster initialized.
+[00:00:01] [INFO] Standing by for dispatch trigger...</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 3: DATASETS & INVENTORY (DATA GRID) -->
+      <section id="view-datasets" class="view-panel">
+        <div class="data-card">
+          <div class="data-toolbar">
+            <div class="search-box">
+              <i class="fas fa-search" style="color: var(--text-dim);"></i>
+              <input type="text" id="filterInput" placeholder="Filter by product, title, location..." oninput="fetchRecords()">
+            </div>
+
+            <div class="filter-pills">
+              <select id="platformFilter" class="form-select" style="width: 170px; padding: 0.55rem 0.85rem; font-size: 0.8rem;" onchange="fetchRecords()">
+                <option value="all">All Platforms</option>
+                <option value="Amazon / Retail Hub">Amazon / Retail</option>
+                <option value="Craigslist US">Craigslist US</option>
+                <option value="OLX Europe">OLX Europe</option>
+                <option value="CoinGecko / Market Ticker">CoinGecko Tickers</option>
+              </select>
+
+              <select id="sortFilter" class="form-select" style="width: 160px; padding: 0.55rem 0.85rem; font-size: 0.8rem;" onchange="fetchRecords()">
+                <option value="newest">Newest First</option>
+                <option value="price_desc">Price: High to Low</option>
+                <option value="price_asc">Price: Low to High</option>
+                <option value="rating_desc">Highest Rated</option>
+              </select>
+            </div>
+
+            <div class="export-btns">
+              <a href="/api/export/csv" class="btn btn-outline" style="font-size: 0.8rem;"><i class="fas fa-file-csv"></i> CSV</a>
+              <a href="/api/export/xlsx" class="btn btn-outline" style="font-size: 0.8rem;"><i class="fas fa-file-excel text-emerald-400"></i> Excel</a>
+              <a href="/api/export/json" class="btn btn-outline" style="font-size: 0.8rem;"><i class="fas fa-code text-blue-400"></i> JSON</a>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="intel-table">
+              <thead>
+                <tr>
+                  <th>Preview</th>
+                  <th>Title & Description</th>
+                  <th>Platform</th>
+                  <th>Category</th>
+                  <th>Market Price</th>
+                  <th>Location / Availability</th>
+                  <th>Rating</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="intelTableBody">
+                <!-- Dynamically Populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 4: PRICING ANALYTICS -->
+      <section id="view-analytics" class="view-panel">
+        <div class="chart-grid-2">
+          <div class="chart-box">
+            <div class="chart-box-header">
+              <div class="chart-box-title">
+                <i class="fas fa-chart-pie" style="color: #a855f7;"></i>
+                <span>Category Market Intelligence Shares</span>
+              </div>
+            </div>
+            <div style="max-width: 320px; margin: 0 auto;">
+              <canvas id="chartCategoryDoughnut" height="260"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-box">
+            <div class="chart-box-header">
+              <div class="chart-box-title">
+                <i class="fas fa-trophy" style="color: #fbbf24;"></i>
+                <span>Top Luxury & High-Valued Assets</span>
+              </div>
+            </div>
+            <canvas id="chartTopAssets" height="260"></canvas>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <script>
+    // Navigation Routing
+    function switchView(viewId, element) {
+      document.querySelectorAll('.view-panel').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      
+      const target = document.getElementById('view-' + viewId);
+      if (target) target.classList.add('active');
+      
+      if (element) {
+        element.classList.add('active');
+      } else {
+        const item = Array.from(document.querySelectorAll('.nav-item')).find(n => n.getAttribute('onclick')?.includes(viewId));
+        if (item) item.classList.add('active');
+      }
+
+      const titles = {
+        'overview': 'Executive Telemetry & Overview',
+        'studio': 'Crawler Studio & Live Dispatch Console',
+        'datasets': 'Intelligence Datasets & Relational Inventory',
+        'analytics': 'Pricing Analytics & Econometric Charts'
+      };
+      document.getElementById('pageTitle').textContent = titles[viewId] || 'MarketPulse DataOps';
+      
+      if (viewId === 'datasets') fetchRecords();
+      if (viewId === 'analytics' || viewId === 'overview') loadChartData();
+    }
+
+    function handlePlatformChange() {
+      const p = document.getElementById('platformSelect').value;
+      const urlGroup = document.getElementById('urlGroup');
+      const queryGroup = document.getElementById('queryGroup');
+      const cityGroup = document.getElementById('cityGroup');
+
+      if (p === 'universal') {
+        urlGroup.style.display = 'block';
+        queryGroup.style.display = 'none';
+        cityGroup.style.display = 'none';
+      } else if (p === 'craigslist' || p === 'olx') {
+        urlGroup.style.display = 'none';
+        queryGroup.style.display = 'block';
+        cityGroup.style.display = 'block';
+      } else {
+        urlGroup.style.display = 'none';
+        queryGroup.style.display = 'block';
+        cityGroup.style.display = 'none';
+      }
+    }
+
+    // Connect SSE stream for live crawler logs
+    const eventSource = new EventSource('/api/scrape/stream');
+    eventSource.onmessage = function(e) {
+      const data = JSON.parse(e.data);
+      const terminal = document.getElementById('terminalLog');
+      terminal.textContent += '\n' + data.log;
+      terminal.scrollTop = terminal.scrollHeight;
+    };
+
+    // Dispatch Crawler
+    async function dispatchCrawl(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btnDispatch');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Crawler In Flight...';
+
+      const body = {
+        platform: document.getElementById('platformSelect').value,
+        query: document.getElementById('crawlQuery').value,
+        city: document.getElementById('crawlCity').value,
+        limit: document.getElementById('crawlLimit').value,
+        url: document.getElementById('crawlUrl').value
+      };
+
+      try {
+        const res = await fetch('/api/scrape/start', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!res.ok) alert(data.error || 'Failed to dispatch');
+      } catch(err) {
+        alert('Network error connecting to MarketPulse Agent');
+      } finally {
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fas fa-bolt"></i> Dispatch Autonomous Crawler';
+          loadStats();
+          loadChartData();
+        }, 4000);
+      }
+    }
+
+    // Fetch Table Records
+    async function fetchRecords() {
+      const q = document.getElementById('filterInput')?.value || '';
+      const platform = document.getElementById('platformFilter')?.value || 'all';
+      const sort = document.getElementById('sortFilter')?.value || 'newest';
+
+      const res = await fetch(`/api/records?q=${encodeURIComponent(q)}&platform=${encodeURIComponent(platform)}&sort=${encodeURIComponent(sort)}&limit=100`);
+      const data = await res.json();
+      const tbody = document.getElementById('intelTableBody');
+      tbody.innerHTML = '';
+
+      if (!data.records || data.records.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-dim); padding: 3rem;">No intelligence records match current filters</td></tr>';
+        return;
+      }
+
+      data.records.forEach(r => {
+        const tr = document.createElement('tr');
+        
+        let platClass = 'plat-retail';
+        if (r.platform.includes('Craigslist')) platClass = 'plat-craigslist';
+        else if (r.platform.includes('OLX')) platClass = 'plat-olx';
+        else if (r.platform.includes('CoinGecko')) platClass = 'plat-crypto';
+        else if (r.platform.includes('Web Spider')) platClass = 'plat-universal';
+
+        tr.innerHTML = `
+          <td><img src="${r.image_url || 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?q=80&w=100'}" class="table-thumb" alt="Thumbnail" onerror="this.src='https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?q=80&w=100'"></td>
+          <td style="max-width: 320px; font-weight: 600;">
+            <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${r.title}</div>
+            <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 3px;">Scraped: ${r.scraped_at}</div>
+          </td>
+          <td><span class="platform-pill ${platClass}">${r.platform}</span></td>
+          <td><span style="font-size: 0.8rem; color: var(--text-muted);">${r.category}</span></td>
+          <td class="price-cell">${r.price_str || '$0'}</td>
+          <td style="color: var(--text-muted); font-size: 0.8rem;"><i class="fas fa-map-marker-alt text-emerald-400"></i> ${r.location || 'Global'}</td>
+          <td><span class="rating-badge"><i class="fas fa-star"></i> ${r.rating || 4.5}</span></td>
+          <td>
+            <a href="${r.url || '#'}" target="_blank" class="btn btn-outline" style="padding: 0.35rem 0.65rem; font-size: 0.75rem;" title="View Source Listing">
+              <i class="fas fa-external-link-alt"></i>
+            </a>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Chart.js instances
+    let chartSpline, chartBars, chartDoughnut, chartAssets;
+
+    async function loadChartData() {
+      const res = await fetch('/api/charts/data');
+      const d = await res.json();
+
+      // 1. Spline Chart
+      if (document.getElementById('chartPriceSpline')) {
+        if (chartSpline) chartSpline.destroy();
+        chartSpline = new Chart(document.getElementById('chartPriceSpline'), {
+          type: 'line',
+          data: {
+            labels: d.price_brackets.map(b => b.label),
+            datasets: [{
+              label: 'Listings in Bracket',
+              data: d.price_brackets.map(b => b.count),
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.15)',
+              tension: 0.4,
+              fill: true,
+              pointBackgroundColor: '#10b981'
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } },
+              y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } }
+            }
+          }
+        });
+      }
+
+      // 2. Platform Bar Chart
+      if (document.getElementById('chartPlatformBars')) {
+        if (chartBars) chartBars.destroy();
+        chartBars = new Chart(document.getElementById('chartPlatformBars'), {
+          type: 'bar',
+          data: {
+            labels: d.platforms,
+            datasets: [{
+              label: 'Total Scraped Records',
+              data: d.platform_counts,
+              backgroundColor: ['#60a5fa', '#a855f7', '#06b6d4', '#10b981', '#f59e0b'],
+              borderRadius: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
+              y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } }
+            }
+          }
+        });
+      }
+
+      // 3. Category Doughnut
+      if (document.getElementById('chartCategoryDoughnut')) {
+        if (chartDoughnut) chartDoughnut.destroy();
+        chartDoughnut = new Chart(document.getElementById('chartCategoryDoughnut'), {
+          type: 'doughnut',
+          data: {
+            labels: d.categories,
+            datasets: [{
+              data: d.category_counts,
+              backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#64748b'],
+              borderWidth: 0
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12 } } }
+          }
+        });
+      }
+
+      // 4. Top Assets Horizontal Bar
+      if (document.getElementById('chartTopAssets')) {
+        if (chartAssets) chartAssets.destroy();
+        chartAssets = new Chart(document.getElementById('chartTopAssets'), {
+          type: 'bar',
+          indexAxis: 'y',
+          data: {
+            labels: d.top_assets.map(a => a.name),
+            datasets: [{
+              label: 'Asset Valuation ($)',
+              data: d.top_assets.map(a => a.price),
+              backgroundColor: '#fbbf24',
+              borderRadius: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } },
+              y: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+            }
+          }
+        });
+      }
+    }
+
+    async function loadStats() {
+      const res = await fetch('/api/stats');
+      const data = await res.json();
+      document.getElementById('kpiTotal').textContent = data.total_records;
+      document.getElementById('kpiAvg').textContent = data.avg_price;
+      document.getElementById('kpiPeak').textContent = data.max_price;
+    }
+
+    // Initial Load
+    window.addEventListener('DOMContentLoaded', () => {
+      loadStats();
+      loadChartData();
+      fetchRecords();
+    });
+  </script>
+</body>
+</html>
