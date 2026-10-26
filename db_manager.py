@@ -1,12 +1,29 @@
 # db_manager.py
 import sqlite3
 import os
+import shutil
 from datetime import datetime
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'marketpulse_intel.db')
-OLD_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'listings.db')
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BUNDLE_DB = os.path.join(BASE_DIR, 'marketpulse_intel.db')
+OLD_DB_PATH = os.path.join(BASE_DIR, 'listings.db')
+
+if os.environ.get('VERCEL'):
+    DB_PATH = '/tmp/marketpulse_intel.db'
+    if not os.path.exists(DB_PATH) and os.path.exists(BUNDLE_DB):
+        try:
+            shutil.copy(BUNDLE_DB, DB_PATH)
+        except Exception as e:
+            print(f"Copy DB warning: {e}")
+else:
+    DB_PATH = BUNDLE_DB
 
 def get_connection():
+    if os.environ.get('VERCEL') and not os.path.exists(DB_PATH) and os.path.exists(BUNDLE_DB):
+        try:
+            shutil.copy(BUNDLE_DB, DB_PATH)
+        except Exception:
+            pass
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn

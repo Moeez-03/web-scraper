@@ -19,9 +19,13 @@ from scrapers.craigslist_scraper import scrape_craigslist
 from scrapers.ecommerce_scraper import scrape_ecommerce
 from scrapers.crypto_scraper import scrape_crypto
 from scrapers.universal_scraper import scrape_universal
-from classified_scrapper import ClassifiedScraper
 
-app = Flask(__name__, static_folder='static', template_folder='templates')
+_base_dir = os.path.dirname(os.path.abspath(__file__))
+app = Flask(
+    __name__,
+    static_folder=os.path.join(_base_dir, 'static'),
+    template_folder=os.path.join(_base_dir, 'templates')
+)
 
 # Initialize DB on start
 db_manager.init_db()
@@ -47,6 +51,7 @@ def broadcast_log(msg):
             pass
 
 @app.route('/')
+@app.route('/api/index')
 def dashboard():
     return render_template('index.html')
 
@@ -280,11 +285,14 @@ def api_scrape_start():
             elif platform == 'olx':
                 active_job['progress'] = 30
                 broadcast_log(f"[OLX] Launching Headless Chrome driver with anti-detection...")
-                scraper = ClassifiedScraper(site='olx')
-                scraper.run_scraper([query or 'mieszkanie'], max_pages=1, region=city)
-                # re-sync with db
-                db_manager.migrate_and_seed(db_manager.get_connection())
-                broadcast_log(f"[OLX] Scraping completed. Database synchronized.")
+                try:
+                    from classified_scrapper import ClassifiedScraper
+                    scraper = ClassifiedScraper(site='olx')
+                    scraper.run_scraper([query or 'mieszkanie'], max_pages=1, region=city)
+                    db_manager.migrate_and_seed(db_manager.get_connection())
+                    broadcast_log(f"[OLX] Scraping completed. Database synchronized.")
+                except Exception as e:
+                    broadcast_log(f"[OLX] Headless browser note: {e}")
                 
             active_job['progress'] = 75
             if records:
