@@ -7,6 +7,7 @@ import queue
 import threading
 from io import BytesIO, StringIO
 from datetime import datetime
+from urllib.parse import parse_qs, urlencode
 from flask import Flask, render_template, request, jsonify, Response, send_file
 import pandas as pd
 import openpyxl
@@ -26,6 +27,43 @@ app = Flask(
     static_folder=os.path.join(_base_dir, 'static'),
     template_folder=os.path.join(_base_dir, 'templates')
 )
+
+# WSGI Middleware to restore original PATH_INFO from Vercel rewrites
+class VercelPathFixMiddleware:
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        qs = environ.get('QUERY_STRING', '')
+        # Check __vercel_path first, then fallback to path
+        if '__vercel_path=' in qs:
+            try:
+                params = parse_qs(qs, keep_blank_values=True)
+                if '__vercel_path' in params:
+                    raw_path = params.pop('__vercel_path')[0]
+                    clean_path = '/' + raw_path.lstrip('/')
+                    environ['PATH_INFO'] = clean_path
+                    environ['QUERY_STRING'] = urlencode(params, doseq=True)
+            except Exception:
+                pass
+        elif 'path=' in qs:
+            try:
+                params = parse_qs(qs, keep_blank_values=True)
+                if 'path' in params:
+                    raw_path = params.pop('path')[0]
+                    clean_path = '/' + raw_path.lstrip('/')
+                    environ['PATH_INFO'] = clean_path
+                    environ['QUERY_STRING'] = urlencode(params, doseq=True)
+            except Exception:
+                pass
+
+        path_info = environ.get('PATH_INFO', '')
+        if path_info in ('/api/index', '/api/index.py', '/api', ''):
+            environ['PATH_INFO'] = '/'
+
+        return self.wsgi_app(environ, start_response)
+
+app.wsgi_app = VercelPathFixMiddleware(app.wsgi_app)
 
 # Initialize DB on start
 db_manager.init_db()
@@ -53,6 +91,16 @@ def broadcast_log(msg):
 @app.route('/')
 @app.route('/api/index')
 def dashboard():
+    if request.args.get('debug') == '1':
+        return jsonify({
+            'PATH_INFO': request.environ.get('PATH_INFO'),
+            'QUERY_STRING': request.environ.get('QUERY_STRING'),
+            'REQUEST_URI': request.environ.get('REQUEST_URI'),
+            'RAW_URI': request.environ.get('RAW_URI'),
+            'HTTP_X_MATCHED_PATH': request.environ.get('HTTP_X_MATCHED_PATH'),
+            'HTTP_X_NOW_ROUTE_MATCHES': request.environ.get('HTTP_X_NOW_ROUTE_MATCHES'),
+            'headers': {k: str(v) for k, v in request.environ.items() if k.startswith('HTTP_')}
+        })
     return render_template('index.html')
 
 @app.route('/api/stats')
