@@ -106,7 +106,7 @@ Enter search phrase(s):
 ```
 
 - Enter a single search phrase like: `mieszkanie warszawa`
-- Or enter multiple search phrases separated by commas: `mieszkanie warszawa, dom 100m2, lokal użytkowy`
+- Or enter multiple search phrases separated by commas: `mieszkanie warszawa, dom 100m2, lokal u┼╝ytkowy`
 - The scraper will process each search phrase separately
 
 ### 3. Number of Pages
@@ -127,7 +127,7 @@ Would you like to do a region-specific analysis?
 Enter region name (or leave empty for no region analysis):
 ```
 
-- Enter a region name like `Warszawa` or `Kraków` to generate region-specific comparisons
+- Enter a region name like `Warszawa` or `Krak├│w` to generate region-specific comparisons
 - Leave empty and press Enter if you don't want region-specific analysis
 - The region name is used for pattern matching, so it's not case-sensitive
 
@@ -222,3 +222,14 @@ If the scraper is running slowly:
 ## License
 
 This project is available under the MIT License.
+---
+
+## 💼 Need a Custom Automation or Scraping Solution?
+
+I help companies, startups, and agencies automate complex workflows:
+- **Custom Document & PDF Processing:** High-volume parsing, dynamic generation, and batch editing.
+- **Web Scraping & Data Pipelines:** Multi-threaded e-commerce scrapers, API integrations, and ETL pipelines.
+- **Consulting & Contract Development:** Clean, scalable Python architecture for your business.
+
+👉 **[Book a 15-Minute Discovery Call](https://cal.com/abdul-moeez)**  
+📩 Or connect via **[LinkedIn](https://www.linkedin.com/in/abdul-moeez-nadeem-98a468205/)** | **[Website](https://amethystdevelopers.com)**
