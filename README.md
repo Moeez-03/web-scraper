@@ -222,6 +222,7 @@ If the scraper is running slowly:
 ## License
 
 This project is available under the MIT License.
+
 ---
 
 ## 💼 Need a Custom Automation or Scraping Solution?
